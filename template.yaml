@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  location-filtering
+
+  Sample SAM Template for location-filtering
+
+
+Resources:
+  DistanceFilteringCollection:
+    Type: AWS::Location::GeofenceCollection
+    Properties:
+      CollectionName: DistanceFilteringCollection
+      Description: Geofence Collection for Distance Based Filtering
+  AccuracyFilteringCollection:
+    Type: AWS::Location::GeofenceCollection
+    Properties:
+      CollectionName: AccuracyFilteringCollection
+      Description: Geofence Collection for Accuracy Based Filtering
+
+  TimeFilteringCollection:
+    Type: AWS::Location::GeofenceCollection
+    Properties:
+      CollectionName: TimeFilteringCollection
+      Description: Geofence Collection for time Based Filtering
+  DistanceFilteringTracker:
+    Type: AWS::Location::Tracker
+    Properties: 
+      Description: String
+      PositionFiltering: DistanceBased
+      TrackerName: DistanceFilteringTracker
+  AccuracyFilteringTracker:
+    Type: AWS::Location::Tracker
+    Properties: 
+      Description: String
+      PositionFiltering: AccuracyBased
+      TrackerName: AccuracyFilteringTracker
+  TimeFilteringTracker:
+    Type: AWS::Location::Tracker
+    Properties: 
+      Description: String
+      PositionFiltering: TimeBased
+      TrackerName: TimeFilteringTracker
+  DistanceFilteringAssociation:
+    Type: AWS::Location::TrackerConsumer
+    DependsOn: DistanceFilteringTracker
+    Properties: 
+      ConsumerArn: !GetAtt DistanceFilteringCollection.Arn
+      TrackerName: DistanceFilteringTracker
+  AccuracyFilteringAssociation:
+    Type: AWS::Location::TrackerConsumer
+    DependsOn: AccuracyFilteringTracker
+    Properties: 
+      ConsumerArn: !GetAtt AccuracyFilteringCollection.Arn
+      TrackerName: AccuracyFilteringTracker
+  TimeFilteringAssociation:
+    Type: AWS::Location::TrackerConsumer
+    DependsOn: TimeFilteringTracker
+    Properties: 
+      ConsumerArn: !GetAtt TimeFilteringCollection.Arn
+      TrackerName: TimeFilteringTracker
+  UpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      Runtime: python3.7
+      CodeUri: mqtt_update_function/
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action: 
+              - 'geo:BatchUpdateDevicePosition'
+            Resource:
+              - !GetAtt DistanceFilteringTracker.Arn
+              - !GetAtt AccuracyFilteringTracker.Arn
+              - !GetAtt TimeFilteringTracker.Arn
+  CustomResourceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      Runtime: python3.7
+      CodeUri: custom_resource/
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action: 
+              - 'geo:TagResource'
+            Resource:
+              - !GetAtt DistanceFilteringTracker.Arn
+              - !GetAtt AccuracyFilteringTracker.Arn
+              - !GetAtt TimeFilteringTracker.Arn
+              - !GetAtt TimeFilteringCollection.Arn
+              - !GetAtt DistanceFilteringCollection.Arn
+              - !GetAtt AccuracyFilteringCollection.Arn
+        - Statement:
+          - Effect: Allow
+            Action: 
+              - 'geo:DescribeGeofenceCollection'
+              - 'geo:PutGeofence'
+            Resource:
+              - !GetAtt TimeFilteringCollection.Arn
+              - !GetAtt DistanceFilteringCollection.Arn
+              - !GetAtt AccuracyFilteringCollection.Arn
+        - Statement:
+          - Effect: Allow
+            Action: 
+              - 'geo:DescribeTracker'
+            Resource:
+              - !GetAtt DistanceFilteringTracker.Arn
+              - !GetAtt AccuracyFilteringTracker.Arn
+              - !GetAtt TimeFilteringTracker.Arn
+  LambdaIotPermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UpdateFunction
+      Principal: iot.amazonaws.com
+  IotCoreRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      RuleName: UpdateTrackerFromMQTT
+      TopicRulePayload:
+        Description: Rule to send MQTT messages to Amazon Location Service Tracker
+        Sql: "SELECT * FROM '/location/filtering'"
+        Actions:
+          - Lambda:
+              FunctionArn: !GetAtt UpdateFunction.Arn
+  CustomResource:
+    Type: Custom::TaggingAndGeoFences
+    Properties:
+      ServiceToken: !GetAtt CustomResourceFunction.Arn
