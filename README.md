@@ -1,4 +1,4 @@
-# location-filtering
+# Location Service Tracker Filtering Simulation
 
 This project contains source code and supporting files for Tracker and geofence resources associated with the Blog "Cost Effective Amazon Location Service Tracker Filtering" it includes the followings files and folders
 
