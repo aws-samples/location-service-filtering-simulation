@@ -44,7 +44,7 @@ Configuring SAM deploy
 To delete the sample application that you created, use the SAM CLI:
 
 ```bash
-sam destroy
+sam delete
 ```
 
 ## Resources
